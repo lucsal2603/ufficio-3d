@@ -8,7 +8,7 @@
   const CAPO = 'manager';
   const DURATE = { appisola: [8, 20], passeggia: [10, 20], caffe: [15, 30], telefono: [12, 25], va_da: [8, 8], sgrida: [6, 6],
     sbadiglia: [3, 4], pensa: [4, 6], gira_sedia: [3, 3], guarda_orologio: [3, 3], balla: [8, 15], applaude: [3, 4], chiacchiera: [15, 30],
-    sgranchisce: [14, 20], mangia: [30, 50] };
+    sgranchisce: [14, 20], mangia: [30, 50], schiaffo: [9, 9] };
   const PESI = { appisola: 0.04, passeggia: 0.16, caffe: 0.12, telefono: 0.12, sbadiglia: 0.06, pensa: 0.08, gira_sedia: 0.05, guarda_orologio: 0.05, balla: 0.04, sgranchisce: 0.14, mangia: 0.10 };
   const PAUSA_PISOLINO = 10 * 60 * 1000;   // al massimo un pisolino ogni dieci minuti per omino
   const stato = {};
@@ -25,7 +25,7 @@
   function inizia(agente, fase, soggetto) {
     const s = stato[agente];
     s.fase = fase; s.fino = Date.now() + ms(DURATE[fase]); s.sgridata = 0;
-    if (fase === 'appisola') s.ultimoPisolino = Date.now();
+    if (fase === 'appisola') { s.ultimoPisolino = Date.now(); s.schiaffo = agente !== CAPO && Math.random() < 0.75 ? Date.now() + rand(5, 9) * 1000 : 0; }
     emetti(agente, fase, soggetto);
     if (fase === 'telefono' && Math.random() < 0.6) s.sgridata = Date.now() + rand(5, 10) * 1000;
     if (fase === 'caffe' && Math.random() < 0.45) {
@@ -65,6 +65,16 @@
         }
         continue;
       }
+      if (s.fase === 'appisola' && s.schiaffo && now >= s.schiaffo) {
+        s.schiaffo = 0;
+        const capo = stato[CAPO];
+        if (capo.fase === 'lavora' || capo.fase === 'passeggia' || capo.fase === 'sgranchisce') {
+          capo.fase = 'schiaffo'; capo.fino = now + ms(DURATE.schiaffo);
+          emetti(CAPO, 'schiaffo', a);
+          s.fase = 'lavora'; s.fino = 0; s.prossimo = now + rand(60, 150) * 1000;
+          continue;
+        }
+      }
       if (s.fase !== 'lavora' && now >= s.fino) { torna(a); continue; }
       if (s.fase === 'lavora' && now >= s.prossimo && now - s.ultimoReale > 20000) inizia(a, scegli(a));
     }
@@ -97,6 +107,6 @@
     rimprovero: 'mette via il telefono e si rimette a lavorare', va_da: 'si alza e va da',
     sbadiglia: 'si stira e sbadiglia', pensa: 'mano al mento, ci pensa su', gira_sedia: 'fa un giro sulla sedia',
     guarda_orologio: 'guarda l\'orologio', balla: 'balla con le cuffie', applaude: 'applaude', chiacchiera: 'chiacchiera al caffè con',
-    sgranchisce: 'si alza per sgranchirsi le gambe', mangia: 'va al tavolo a mangiare qualcosa',
+    sgranchisce: 'si alza per sgranchirsi le gambe', mangia: 'va al tavolo a mangiare qualcosa', schiaffo: 'corre a svegliare con uno schiaffo',
   } };
 })();

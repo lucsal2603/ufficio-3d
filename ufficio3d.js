@@ -21,7 +21,7 @@ const ICONE = {
   mangia: ['🍽️', 'mangia'], cammina: ['🚶', 'in giro'], stiracchia_piedi: ['🙆', 'si stira'], balla: ['🎧', 'balla'],
   applaude: ['👏', 'bravo!'], festeggia: ['🎉', 'evviva!'], errore: ['🤔', 'mmm...'], finito: ['✅', 'fatto'],
   trovato: ['🔎', 'trovato!'], pensa: ['💡', 'idea!'], sbadiglia: ['🥱', 'sbadiglia'], gira_sedia: ['🌀', 'gira'],
-  guarda_orologio: ['⌚', "che ora è?"], saluta: ['👋', 'ciao!'], beve_acqua: ['💧', 'beve'],
+  guarda_orologio: ['⌚', "che ora è?"], saluta: ['👋', 'ciao!'], beve_acqua: ['💧', 'beve'], schiaffo: ['💢', 'sveglia!'], corre: ['🏃', 'corre'],
   cibo_panino: ['🥪', 'panino'], cibo_pizza: ['🍕', 'pizza'], cibo_mela: ['🍎', 'mela'], cibo_tazza: ['☕', 'tazza'], cibo_brioche: ['🥐', 'brioche'],
 };
 const _texture = {};
@@ -109,14 +109,14 @@ class Omino {
     az.play(); this.azione = az; return clip.duration;
   }
   // ---- passi della coda ----
-  vai(p, faccia) { this.coda.push({ tipo: 'vai', a: p.clone(), faccia }); return this; }
+  vai(p, faccia, corri = false) { this.coda.push({ tipo: 'vai', a: p.clone(), faccia, corri }); return this; }
   clip(nome, opz = {}) { this.coda.push({ tipo: 'clip', nome, ...opz }); return this; }
   attesa(ms) { this.coda.push({ tipo: 'attesa', ms }); return this; }
   fai(fn) { this.coda.push({ tipo: 'fai', fn }); return this; }
   alzati() { this.coda.push({ tipo: 'alzati' }); return this; }
   siediti(poi = 'digita', dove = null, yaw = 0) { this.coda.push({ tipo: 'siediti', poi, dove, yaw }); return this; }
   torna(poi = 'digita') { return this.vai(this.seat).siediti(poi); }
-  svuota() { this.coda = []; this.passo = null; }
+  svuota() { this.coda = []; this.passo = null; this.lasciaCibo(); }
   siediSubito(poi) { this.seduto = true; this.play(poi, { loop: true, fade: 0.1 }); }
   // ---- sequenze ----
   sedutoCon(nome, secondi, poi = 'digita') {
@@ -146,6 +146,15 @@ class Omino {
     this.clip(nome_clip, { loop: true, secondi });
     return this.torna();
   }
+  schiaffo(bersaglio) {
+    const b = this.mondo.omini[bersaglio]; if (!b) return this;
+    const p = this.mondo.punti['wp_' + bersaglio + '_fronte'];
+    this.svuota(); this.alzati();
+    if (p) this.vai(p, Math.PI, true); else this.vai(b.root.position.clone().add(new THREE.Vector3(0.9, 0, 0)), undefined, true);
+    this.clip('schiaffo', { loop: false });
+    this.fai(() => { b.svuota(); if (!b.seduto) b.torna(); b.clip('sveglia', { loop: false }); b.clip('digita', { loop: true, secondi: 0.01 }); b.fumetto('sveglia', 3); });
+    return this.torna();
+  }
   vaA(nomePunto, nome_clip, secondi, poi = 'digita') {
     const p = this.mondo.punti[nomePunto]; if (!p) return this.giro(nome_clip, secondi);
     this.svuota(); this.alzati().vai(p, FACCIA_FISSA[nomePunto]);
@@ -160,11 +169,14 @@ class Omino {
     this.alzati().fai(() => { if (this.sgabello) this.sgabello.occupato = false; this.sgabello = null; });
     return this.torna();
   }
-  prendiCibo() {
+  prendiCibo(nome = null) {
     if (!this.mano || !this.mondo.cibo) return;
-    const src = this.mondo.cibo[scegli(CIBI)]; if (!src) return;
-    this.cibo = src.clone(true); this.cibo.position.set(-0.05, 0.06, 0.02); this.cibo.rotation.set(0, 0, 0); this.cibo.scale.set(1, 1, 1);
-    this.mano.add(this.cibo); this.fumetto(src.name, 30);
+    const src = this.mondo.cibo[nome || scegli(CIBI)]; if (!src) return;
+    this.lasciaCibo();
+    this.cibo = src.clone(true); this.cibo.scale.set(1, 1, 1);
+    if (nome === 'cibo_telefono') { this.cibo.position.set(-0.02, 0.05, 0.03); this.cibo.rotation.set(-0.9, 0, 0); }
+    else { this.cibo.position.set(-0.05, 0.06, 0.02); this.cibo.rotation.set(0, 0, 0); }
+    this.mano.add(this.cibo); if (nome !== 'cibo_telefono') this.fumetto(src.name, 30);
   }
   lasciaCibo() { if (this.cibo) { this.cibo.removeFromParent(); this.cibo = null; } }
   // ---- aggiornamento ----
@@ -176,14 +188,14 @@ class Omino {
     if (p.tipo === 'vai') {
       const pos = this.root.position; const dir = new THREE.Vector3().subVectors(p.a, pos); dir.y = 0; const dist = dir.length();
       if (dist < 0.05) { pos.x = p.a.x; pos.z = p.a.z; if (p.faccia !== undefined && p.faccia !== null) this.root.rotation.y = p.faccia; this.finePasso(); return; }
-      dir.normalize(); const passo = Math.min(dist, VELOCITA * dt); pos.addScaledVector(dir, passo);
+      dir.normalize(); const passo = Math.min(dist, (p.corri ? VELOCITA * 2.1 : VELOCITA) * dt); pos.addScaledVector(dir, passo);
       this.root.rotation.y = lerpAngolo(this.root.rotation.y, Math.atan2(dir.x, dir.z), Math.min(1, dt * 8));
     } else if (p.tipo === 'clip' || p.tipo === 'attesa' || p.tipo === 'alzati' || p.tipo === 'siediti') {
       p.resto -= dt * 1000; if (p.resto <= 0) this.finePasso();
     }
   }
   inizioPasso(p) {
-    if (p.tipo === 'vai') { if (this.seduto) { this.seduto = false; } this.play('cammina', { loop: true }); if (this.root.position.distanceTo(p.a) > 1.2) this.fumetto('cammina', 3); }
+    if (p.tipo === 'vai') { if (this.seduto) { this.seduto = false; } this.play('cammina', { loop: true }); if (this.azione) this.azione.timeScale = p.corri ? 1.9 : 1; if (this.root.position.distanceTo(p.a) > 1.2) this.fumetto(p.corri ? 'corre' : 'cammina', 3); }
     else if (p.tipo === 'clip') { const d = this.play(p.nome, { loop: !!p.loop }); p.resto = (p.secondi != null ? p.secondi : d) * 1000; if (!p.loop && p.secondi == null) p.resto = d * 1000; if (!['digita', 'seduto', 'idle_piedi', 'siediti', 'alzati'].includes(p.nome)) this.fumetto(p.nome, Math.min(60, Math.max(3, p.resto / 1000))); }
     else if (p.tipo === 'attesa') { p.resto = p.ms; }
     else if (p.tipo === 'alzati') { if (this.seduto) { const d = this.play('alzati', { loop: false }); p.resto = d * 1000; this.seduto = false; } else p.resto = 0; }
@@ -272,9 +284,10 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
     switch (ev.azione) {
       case 'appisola': o.sedutoCon('appisola', 60, null); break;
       case 'sveglia': o.sedutoCon('sveglia', 0.7); break;
-      case 'telefono': o.sedutoCon('telefono', 60, null); break;
+      case 'telefono': o.svuota(); if (!o.seduto) o.torna(); o.fai(() => o.prendiCibo('cibo_telefono')); o.clip('telefono', { loop: true, secondi: 60 }); break;
       case 'rimprovero': o.sedutoCon('rimprovero', 1); break;
       case 'sgrida': if (ev.soggetto) o.vaDa(ev.soggetto, 'sgrida', 6); break;
+      case 'schiaffo': if (ev.soggetto) o.schiaffo(ev.soggetto); break;
       case 'va_da': if (ev.soggetto) o.vaDa(ev.soggetto, 'parla', 6); break;
       case 'passeggia': o.giro('idle_piedi', 4, 2); break;
       case 'sgranchisce': o.giro('stiracchia_piedi', 2.5, 1); break;
