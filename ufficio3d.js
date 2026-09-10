@@ -18,13 +18,13 @@ const ICONE = {
   digita: ['⌨️', 'scrive'], scrive: ['⌨️', 'scrive'], legge: ['📄', 'legge'], cerca: ['🗺️', 'cerca'], appisola: ['💤', 'zzz'],
   sveglia: ['❗', 'si sveglia'], telefono: ['📱', 'al telefono'], rimprovero: ['😳', 'scusa!'], sgrida: ['😠', 'sgrida'],
   parla: ['💬', 'parla'], chiacchiera: ['💬', 'chiacchiera'], consegna: ['📨', 'consegna'], caffe: ['☕', 'caffè'],
-  mangia: ['🍽️', 'mangia'], cammina: ['🚶', 'in giro'], stiracchia_piedi: ['🙆', 'si stira'], balla: ['🎧', 'balla'],
+  mangia: ['🍽️', 'mangia'], cammina: ['🚶', 'in giro'], posta: ['✉️', 'posta'], invia: ['📤', 'inviata'], foto: ['📷', 'foto'], ok: ['👍', 'ok'], arrabbiato: ['😠', 'uffa!'], stiracchia_piedi: ['🙆', 'si stira'], balla: ['🎧', 'balla'],
   applaude: ['👏', 'bravo!'], festeggia: ['🎉', 'evviva!'], errore: ['🤔', 'mmm...'], finito: ['✅', 'fatto'],
   trovato: ['🔎', 'trovato!'], pensa: ['💡', 'idea!'], sbadiglia: ['🥱', 'sbadiglia'], gira_sedia: ['🌀', 'gira'],
   guarda_orologio: ['⌚', "che ora è?"], saluta: ['👋', 'ciao!'], beve_acqua: ['💧', 'beve'], schiaffo: ['💢', 'sveglia!'], corre: ['🏃', 'corre'],
   cibo_panino: ['🥪', 'panino'], cibo_pizza: ['🍕', 'pizza'], cibo_mela: ['🍎', 'mela'], cibo_tazza: ['☕', 'tazza'], cibo_brioche: ['🥐', 'brioche'],
 };
-const _texture = {};
+const _texture = {}; const _aspetto = {};
 function texturaFumetto(chiave) {
   if (_texture[chiave]) return _texture[chiave];
   const [icona, testo] = ICONE[chiave] || ['💬', chiave];
@@ -38,13 +38,8 @@ function texturaFumetto(chiave) {
   g.fillText(icona, 128, 82);
   g.font = '600 24px -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif'; g.fillText(testo, 128, 118);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; _texture[chiave] = t;
-  const img = new Image(); img.onload = () => {           // se c'è un'immagine di Luca per questa azione, sostituisce l'emoji
-    g.clearRect(0, 0, 256, 176); g.fillStyle = '#ffffff'; g.strokeStyle = '#1c2128'; g.lineWidth = 6;
-    g.beginPath(); g.roundRect(14, 10, 228, 122, 26); g.fill(); g.stroke();
-    g.beginPath(); g.moveTo(56, 128); g.lineTo(34, 166); g.lineTo(96, 128); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(58, 130); g.lineTo(34, 166); g.lineTo(94, 130); g.stroke(); g.fillStyle = '#ffffff'; g.fillRect(60, 124, 34, 10);
-    g.drawImage(img, 80, 18, 96, 96); g.fillStyle = '#1c2128'; g.font = '600 22px -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.fillText(testo, 128, 126);
-    t.needsUpdate = true; };
+  const img = new Image(); img.onload = () => {           // la vignetta disegnata da Luca sostituisce il fumetto con l'emoji
+    t.image = img; t.needsUpdate = true; _aspetto[chiave] = img.height / img.width; };
   img.src = (window.BASE_ICONE || './icone/') + chiave + '.png';
   return t;
 }
@@ -94,6 +89,26 @@ class Griglia {
     while (cur < celle.length - 1) { let n = celle.length - 1; while (n > cur + 1 && !this.lineaLibera(celle[cur], celle[n])) n--; sempl.push(celle[n]); cur = n; }
     const punti = sempl.slice(1).map(([i, j]) => this.centro(i, j)); punti.push(a.clone()); return punti;
   }
+}
+
+// ---- postazioni: posti affiancati e coda dietro (nessuno finisce sopra un altro) ----
+class Postazione {
+  constructor(nome, base, yaw, nSlot = 3, passo = 0.65) {
+    this.nome = nome; this.base = base.clone(); this.yaw = yaw;
+    this.dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));            // dove si guarda (verso il bancone)
+    const perp = new THREE.Vector3(this.dir.z, 0, -this.dir.x);
+    this.slots = []; for (let k = 0; k < nSlot; k++) this.slots.push(base.clone().addScaledVector(perp, (k - (nSlot - 1) / 2) * passo));
+    this.ordine = [Math.floor(nSlot / 2)].concat([...Array(nSlot).keys()].filter(i => i !== Math.floor(nSlot / 2)));
+    this.occupanti = new Array(nSlot).fill(null); this.coda = [];
+  }
+  posCoda(k) { return this.base.clone().addScaledVector(this.dir, -(1.0 + 0.75 * k)); }
+  chiedi(agente) {
+    const mio = this.occupanti.indexOf(agente); if (mio >= 0) return { slot: mio, pos: this.slots[mio] };
+    for (const i of this.ordine) if (!this.occupanti[i]) { this.occupanti[i] = agente; const k = this.coda.indexOf(agente); if (k >= 0) this.coda.splice(k, 1); return { slot: i, pos: this.slots[i] }; }
+    if (!this.coda.includes(agente)) this.coda.push(agente);
+    const k = this.coda.indexOf(agente); return { coda: k, pos: this.posCoda(k) };
+  }
+  libera(agente) { const i = this.occupanti.indexOf(agente); if (i >= 0) this.occupanti[i] = null; const k = this.coda.indexOf(agente); if (k >= 0) this.coda.splice(k, 1); }
 }
 
 function yawVerso(da, a) { return Math.atan2(a.x - da.x, a.z - da.z); }
@@ -151,9 +166,26 @@ class Omino {
     this.nuvola = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaFumetto('parla'), transparent: true, depthTest: false, opacity: 0 }));
     this.nuvola.scale.set(0.82, 0.56, 1); this.nuvola.position.set(0.5, 2.6, 0); this.nuvola.visible = false; this.nuvolaFino = 0; this.root.add(this.nuvola);
   }
+  fumettoTesto(testo, secondi = 7) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 288; const g = c.getContext('2d');
+    g.font = '600 30px -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center';
+    const parole = String(testo).split(' '); const righe = []; let riga = '';
+    for (const w of parole) { const t = riga ? riga + ' ' + w : w; if (g.measureText(t).width > 430 && riga) { righe.push(riga); riga = w; } else riga = t; }
+    if (riga) righe.push(riga); const rr = righe.slice(0, 4);
+    const h = 40 + rr.length * 38; const top = 250 - h - 44;
+    g.fillStyle = '#ffffff'; g.strokeStyle = '#1c2128'; g.lineWidth = 7;
+    g.beginPath(); g.roundRect(20, top, 472, h, 30); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(90, top + h - 4); g.lineTo(60, top + h + 44); g.lineTo(150, top + h - 4); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(92, top + h - 2); g.lineTo(60, top + h + 44); g.lineTo(148, top + h - 2); g.stroke(); g.fillStyle = '#ffffff'; g.fillRect(95, top + h - 8, 50, 12);
+    g.fillStyle = '#1c2128'; rr.forEach((t, i) => g.fillText(t, 256, top + 46 + i * 38));
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    this.nuvola.material.map = tex; this.nuvola.material.needsUpdate = true; this.nuvola.scale.set(1.9, 1.9 * 288 / 512, 1);
+    this.nuvola.visible = true; this.nuvola.material.opacity = 1; this.nuvolaFino = performance.now() + secondi * 1000;
+  }
   fumetto(chiave, secondi = 4) {
     if (!ICONE[chiave]) return;
     this.nuvola.material.map = texturaFumetto(chiave); this.nuvola.material.needsUpdate = true;
+    const asp = _aspetto[chiave] || 0.69; this.nuvola.scale.set(1.0, 1.0 * asp, 1);
     this.nuvola.visible = true; this.nuvola.material.opacity = 1; this.nuvolaFino = performance.now() + secondi * 1000;
   }
   play(nome, { loop = true, fade = 0.25, tieni = false } = {}) {
@@ -166,14 +198,16 @@ class Omino {
   }
   // ---- passi della coda ----
   vai(p, faccia, corri = false) { this.coda.push({ tipo: 'vai', a: p.clone(), faccia, corri }); return this; }
+  occupa(nomePunto, corri = false) { this.coda.push({ tipo: 'occupa', punto: nomePunto, corri }); return this; }
+  liberaPostazione() { if (this.postazione) { this.postazione.libera(this.nome); this.postazione = null; } }
   teletrasporta(p, yaw) { this.root.position.x = p.x; this.root.position.z = p.z; if (yaw != null) this.root.rotation.y = yaw; this.seduto = false; }
   clip(nome, opz = {}) { this.coda.push({ tipo: 'clip', nome, ...opz }); return this; }
   attesa(ms) { this.coda.push({ tipo: 'attesa', ms }); return this; }
   fai(fn) { this.coda.push({ tipo: 'fai', fn }); return this; }
   alzati() { this.coda.push({ tipo: 'alzati' }); return this; }
   siediti(poi = 'digita', dove = null, yaw = 0) { this.coda.push({ tipo: 'siediti', poi, dove, yaw }); return this; }
-  torna(poi = 'digita') { return this.vai(this.seat).siediti(poi); }
-  svuota() { this.coda = []; this.passo = null; this.lasciaCibo(); }
+  torna(poi = 'digita') { return this.fai(() => this.liberaPostazione()).vai(this.seat).siediti(poi); }
+  svuota() { this.coda = []; this.passo = null; this.lasciaCibo(); this.liberaPostazione(); }
   siediSubito(poi) { this.seduto = true; this.play(poi, { loop: true, fade: 0.1 }); }
   // ---- sequenze ----
   sedutoCon(nome, secondi, poi = 'digita') {
@@ -191,7 +225,7 @@ class Omino {
   }
   giro(nome_clip, secondi, tappe = 1, punto = null) {
     this.svuota(); this.alzati();
-    for (let i = 0; i < tappe; i++) { const wp = this.mondo.punti[i === 0 && punto ? punto : scegli(GIRI)] || this.seat; this.vai(wp); }
+    for (let i = 0; i < tappe; i++) { const nome = i === 0 && punto ? punto : scegli(GIRI); if (this.mondo.punti[nome]) this.occupa(nome); else this.vai(this.seat); }
     if (nome_clip) this.clip(nome_clip, { loop: true, secondi });
     return this.torna();
   }
@@ -199,7 +233,7 @@ class Omino {
     const b = this.mondo.omini[bersaglio]; if (!b) return this;
     const p = this.mondo.punti['wp_' + bersaglio + '_fronte'];
     this.svuota(); this.alzati();
-    if (p) this.vai(p, Math.PI); else this.vai(b.root.position.clone().add(new THREE.Vector3(0.9, 0, 0)));
+    if (p) this.occupa('wp_' + bersaglio + '_fronte'); else this.vai(b.root.position.clone().add(new THREE.Vector3(0.9, 0, 0)));
     this.clip(nome_clip, { loop: true, secondi });
     return this.torna();
   }
@@ -217,7 +251,7 @@ class Omino {
     const d = ev.dati || {}; const rim = Math.max(1, ev.rimasto || 1); const tr = ev.trascorso || 0; const P = this.mondo.punti;
     this.svuota();
     const seduto = clip => { this.teletrasporta(this.seat, 0); this.seduto = true; this.play(clip, { loop: true, fade: 0 }); };
-    const fermo = (punto, clip, yaw) => { const p = P[punto]; if (!p) return seduto('digita'); this.teletrasporta(p, yaw != null ? yaw : (FACCIA_FISSA[punto] != null ? FACCIA_FISSA[punto] : p.yaw)); this.play('idle_piedi', { loop: true, fade: 0 }); this.clip(clip, { loop: true, secondi: rim }); this.torna(); };
+    const fermo = (punto, clip, yaw) => { const Po = this.mondo.postazione(punto); if (!Po) return seduto('digita'); const r = Po.chiedi(this.nome); this.postazione = Po; this.teletrasporta(r.pos, yaw != null ? yaw : Po.yaw); this.play('idle_piedi', { loop: true, fade: 0 }); if (r.slot == null) this.coda.push({ tipo: 'attendi', punto, tempo: 0, ultimo: 0, pos: r.pos.clone(), arrabbiato: false }); this.clip(clip, { loop: true, secondi: rim }); this.torna(); };
     switch (ev.azione) {
       case 'appisola': { this.teletrasporta(this.seat, 0); this.seduto = true; const dur = this.play('appisola', { loop: false, fade: 0 }); if (tr > dur && this.azione) this.azione.time = Math.max(0, dur - 0.02); this.attesa(rim * 1000); this.fumetto('appisola', rim); break; }
       case 'telefono': seduto('telefono'); this.prendiCibo('cibo_telefono'); this.attesa(rim * 1000); this.fumetto('telefono', rim); break;
@@ -239,7 +273,7 @@ class Omino {
   }
   vaA(nomePunto, nome_clip, secondi, poi = 'digita') {
     const p = this.mondo.punti[nomePunto]; if (!p) return this.giro(nome_clip, secondi);
-    this.svuota(); this.alzati().vai(p, FACCIA_FISSA[nomePunto]);
+    this.svuota(); this.alzati().occupa(nomePunto);
     if (nome_clip) this.clip(nome_clip, { loop: true, secondi });
     return this.torna(poi);
   }
@@ -274,6 +308,15 @@ class Omino {
       if (dist < 0.06) { p.percorso.shift(); if (!p.percorso.length) { pos.x = p.a.x; pos.z = p.a.z; if (p.faccia !== undefined && p.faccia !== null) this.root.rotation.y = p.faccia; this.finePasso(); } return; }
       dir.normalize(); const passo = Math.min(dist, (p.corri ? VELOCITA * 2.1 : VELOCITA) * dt); pos.addScaledVector(dir, passo);
       this.root.rotation.y = lerpAngolo(this.root.rotation.y, Math.atan2(dir.x, dir.z), Math.min(1, dt * 8));
+    } else if (p.tipo === 'attendi') {
+      p.tempo += dt; p.ultimo += dt;
+      if (p.ultimo > 0.5) {
+        p.ultimo = 0; const P = this.postazione; if (!P) { this.finePasso(); return; }
+        const r = P.chiedi(this.nome);
+        if (r.slot != null) { this.coda.unshift({ tipo: 'vai', a: r.pos.clone(), faccia: P.yaw }); this.finePasso(); return; }
+        if (r.pos.distanceTo(p.pos) > 0.1) { p.pos.copy(r.pos); this.coda.unshift(p); this.coda.unshift({ tipo: 'vai', a: r.pos.clone(), faccia: P.yaw }); this.passo = null; return; }
+        if (p.tempo > 18 && !p.arrabbiato) { p.arrabbiato = true; this.play('arrabbiato', { loop: true }); this.fumetto('arrabbiato', 12); }
+      }
     } else if (p.tipo === 'clip' || p.tipo === 'attesa' || p.tipo === 'alzati' || p.tipo === 'siediti') {
       p.resto -= dt * 1000; if (p.resto <= 0) this.finePasso();
     }
@@ -289,11 +332,21 @@ class Omino {
       this.coda.unshift({ tipo: 'clip', nome: p.poi, loop: true, secondi: 0.01 });
     }
     else if (p.tipo === 'fai') { try { p.fn(); } catch (e) { console.warn(e); } this.finePasso(); }
+    else if (p.tipo === 'occupa') {
+      const P = this.mondo.postazione(p.punto); this.liberaPostazione();
+      if (!P) { this.finePasso(); return; }
+      this.postazione = P; const r = P.chiedi(this.nome);
+      const passi = [{ tipo: 'vai', a: r.pos.clone(), faccia: P.yaw, corri: p.corri }];
+      if (r.slot == null) passi.push({ tipo: 'attendi', punto: p.punto, tempo: 0, ultimo: 0, pos: r.pos.clone(), arrabbiato: false });
+      this.coda.unshift(...passi); this.finePasso();
+    }
+    else if (p.tipo === 'attendi') { this.play('idle_piedi', { loop: true }); this.fumetto('guarda_orologio', 3); }
   }
   finePasso() { this.passo = null; if (!this.coda.length && this.seduto && !(this.azione && this.azione.loop === THREE.LoopRepeat)) this.play('digita', { loop: true }); }
 }
 
 export async function avvia(container, { base = './', ticker = null } = {}) {
+  Object.keys(ICONE).forEach(k => texturaFumetto(k));   // precarica le vignette
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -316,7 +369,8 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
   scene.add(sole);
   const loader = new GLTFLoader();
   const carica = url => new Promise((ok, no) => loader.load(url, ok, undefined, no));
-  const mondo = { punti: {}, omini: {}, cibo: null, sgabelli: [], griglia: null, sgabelloLibero(pref) { const l = this.sgabelli.filter(s => !s.occupato); if (!l.length) return null; if (pref != null && this.sgabelli[pref % this.sgabelli.length] && !this.sgabelli[pref % this.sgabelli.length].occupato) return this.sgabelli[pref % this.sgabelli.length]; return l[0]; } };
+  const mondo = { punti: {}, omini: {}, cibo: null, sgabelli: [], griglia: null, postazioni: {},
+    postazione(nome) { if (this.postazioni[nome]) return this.postazioni[nome]; const p = this.punti[nome]; if (!p) return null; const yaw = FACCIA_FISSA[nome] != null ? FACCIA_FISSA[nome] : (p.yaw || 0); const n = nome.endsWith('_fronte') ? 2 : 3; this.postazioni[nome] = new Postazione(nome, p, yaw, n, nome.endsWith('_fronte') ? 0.7 : 0.65); return this.postazioni[nome]; }, sgabelloLibero(pref) { const l = this.sgabelli.filter(s => !s.occupato); if (!l.length) return null; if (pref != null && this.sgabelli[pref % this.sgabelli.length] && !this.sgabelli[pref % this.sgabelli.length].occupato) return this.sgabelli[pref % this.sgabelli.length]; return l[0]; } };
 
   try { const r = await fetch(base + 'ostacoli.json', { cache: 'no-store' }); if (r.ok) mondo.griglia = new Griglia(await r.json()); } catch (e) { console.warn('ostacoli non caricati', e); }
   const stanza = await carica(base + 'modelli/stanza.glb');
@@ -393,6 +447,12 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
       case 'sbadiglia': o.sedutoCon('sbadiglia', 2); break;
       case 'pensa': o.sedutoCon('pensa', 2.5); break;
       case 'gira_sedia': o.sedutoCon('gira_sedia', 2); break;
+      case 'dice': {
+        o.fumettoTesto(ev.testo, 7);
+        const b = mondo.omini[ev.a];
+        if (b && ev.risposta) setTimeout(() => b.fumettoTesto(ev.risposta, 5), 3500);
+        break;
+      }
     }
     if (!ev.silenzioso) nota(ev);
   }

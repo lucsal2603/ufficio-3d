@@ -32,6 +32,7 @@
 <div class="frecce"><button id="giraSx" title="Gira a sinistra (freccia ←)">◀</button><button id="giraDx" title="Gira a destra (freccia →)">▶</button></div>
 <div id="ticker"></div>
 <div class="aiuto">trascina per girare, rotella per avvicinare</div>
+<script src="./personaggi.js"></script>
 <script src="./vita.js"></script>
 <script type="module">
 import { avvia } from './ufficio3d.js';
@@ -46,7 +47,8 @@ try {
   await u.riprendiTutti(window.vita);
   window.addEventListener('vita', e => {
     const ev = e.detail; u.vita(ev);
-    let t = window.vita.FRASI[ev.azione] || ev.azione; if (ev.soggetto) t += ' ' + ev.soggetto;
+    if (ev.silenzioso) return;
+    let t = ev.azione === 'dice' ? `a ${ev.a === 'luca' ? 'Luca' : ev.a}: «${ev.testo}»` : (window.vita.FRASI[ev.azione] || ev.azione); if (ev.soggetto && ev.azione !== 'dice') t += ' ' + ev.soggetto;
     const d = document.createElement('div'); d.innerHTML = `<b>${esc(ev.agente)}</b> ${esc(t)}`; tick.appendChild(d);
     while (tick.children.length > 5) tick.removeChild(tick.firstChild);
     setTimeout(() => { if (d.parentNode) d.remove(); }, 14000);

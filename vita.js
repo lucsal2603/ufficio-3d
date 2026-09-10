@@ -108,6 +108,38 @@
   function bloccoA(agente, t) { assicura(t); const bl = agende[agente] || []; let lo = 0, hi = bl.length - 1, ris = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (bl[m].inizio <= t) { ris = bl[m]; lo = m + 1; } else hi = m - 1; } return ris; }
   function attuale(agente, t = Date.now()) { const b = bloccoA(agente, t); if (!b) return null; return { agente, azione: b.azione, soggetto: (b.dati && b.dati.soggetto) || (b.dati && b.dati.compagno) || '', dati: b.dati || {}, inizio: b.inizio, fine: b.fine, trascorso: (t - b.inizio) / 1000, rimasto: Math.max(0, (b.fine - t) / 1000), interrotto: b.interrotto || null }; }
 
+  // ---- umore: dipende da cosa è successo prima, dall'ora e dal carico ----
+  function umore(agente, t = Date.now()) {
+    const b = bloccoA(agente, t); if (!b) return 'sereno';
+    const bl = agende[agente] || []; const i = bl.indexOf(b); const prec = i > 0 ? bl[i - 1] : null;
+    const ora = new Date(t).getHours(), giornoSett = new Date(t).getDay();
+    if (prec && prec.interrotto === 'sveglia' && t - prec.fine < 10 * 60000) return 'irritato';
+    if (prec && prec.azione === 'caffe' && t - prec.fine < 15 * 60000) return 'carico';
+    if (prec && prec.azione === 'mangia' && t - prec.fine < 20 * 60000) return 'soddisfatto';
+    if (b.azione === 'lavora' && t - b.inizio > 200000 && (carico[agente] || 1) > 1.1) return 'stanco';
+    if (ora < 7 || ora >= 22) return 'assonnato';
+    if (giornoSett === 5 && ora >= 16) return 'allegro';
+    return 'sereno';
+  }
+  // ---- battute: decise dal seme del giorno, uguali su ogni dispositivo ----
+  const SITUAZIONI = { lavora: 'lavora', caffe: 'caffe', mangia: 'mangia', telefono: 'telefono', appisola: 'appisola', passeggia: 'passeggia',
+    sgranchisce: 'sgranchisce', balla: 'balla', chiacchiera: 'chiacchiera', sgrida: 'sgrida', schiaffo: 'schiaffo', pensa: 'pensa', sbadiglia: 'sbadiglia' };
+  function battuta(agente, b, giorno) {
+    if (!window.personaggi) return null;
+    const r = mulberry32(hash(`${giorno}|${agente}|${b.inizio}|dice`));
+    const prob = b.azione === 'lavora' ? 0.22 : (['sgrida', 'schiaffo', 'chiacchiera'].includes(b.azione) ? 1 : 0.55);
+    if (r() > prob) return null;
+    let sit = SITUAZIONI[b.azione]; if (!sit) return null;
+    if (b.azione === 'lavora' && r() < 0.35) sit = 'saluto';
+    const collega = (b.dati && (b.dati.soggetto || b.dati.compagno)) || AGENTI.filter(a => a !== agente)[Math.floor(r() * 7)];
+    const ctx = { collega, cibo: ['cibo_panino', 'cibo_pizza', 'cibo_mela', 'cibo_tazza', 'cibo_brioche'][(b.dati && b.dati.cibo) || 0], n: 2 + Math.floor(r() * 3) };
+    const testo = window.personaggi.frase(agente, sit, umore(agente, b.inizio + 1000), ctx, r());
+    if (!testo) return null;
+    const aCollega = ['chiacchiera', 'sgrida', 'schiaffo', 'consegna'].includes(sit) || (sit === 'lavora' && r() < 0.3);
+    const a = aCollega ? collega : 'luca';
+    const risposta = aCollega ? window.personaggi.frase(collega, 'risposta', umore(collega, b.inizio + 1000), { collega: agente }, r()) : null;
+    return { testo, a, risposta };
+  }
   function emetti(ev) { window.dispatchEvent(new CustomEvent('vita', { detail: Object.assign({ ts: new Date().toISOString(), estetico: true }, ev) })); }
   function tick() {
     const t = Date.now();
@@ -123,6 +155,8 @@
         else if (prec && prec.azione !== 'lavora') emetti({ agente: a, azione: 'torna', soggetto: '', dati: b.dati, fine: b.fine, rimasto: b.rimasto });
         else emetti({ agente: a, azione: 'lavora', soggetto: '', dati: b.dati, fine: b.fine, rimasto: b.rimasto, silenzioso: true });
       } else emetti({ agente: a, azione: b.azione, soggetto: b.soggetto, dati: b.dati, fine: b.fine, rimasto: b.rimasto });
+      const d = battuta(a, b, giornoCorrente);
+      if (d) setTimeout(() => emetti({ agente: a, azione: 'dice', testo: d.testo, a: d.a, risposta: d.risposta, umore: umore(a) }), b.azione === 'lavora' ? 1500 : 6000);
     }
   }
 
@@ -134,7 +168,7 @@
   }
   const pronta = (async () => { carico = await caricaCarico(); assicura(Date.now()); if (!avviata) { avviata = true; setInterval(tick, 1000); } })();
 
-  window.vita = { AGENTI, attuale, pronta, reale() {}, get carico() { return carico; }, FRASI: {
+  window.vita = { AGENTI, attuale, pronta, umore, reale() {}, get carico() { return carico; }, FRASI: {
     appisola: 'si è appisolato sulla tastiera', sveglia: 'si sveglia di colpo e riprende a lavorare',
     passeggia: 'si alza e fa due passi', caffe: 'va a prendersi un caffè', torna: 'torna alla scrivania e si rimette al lavoro',
     telefono: 'tira fuori il telefono e scrive a qualcuno', sgrida: 'si alza e sgrida',
