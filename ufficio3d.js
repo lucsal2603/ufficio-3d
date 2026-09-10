@@ -146,7 +146,15 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
   const camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 100);
   camera.position.set(8.5, 7.6, 11.2);
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(-0.2, 0.5, 0.2); controls.maxPolarAngle = Math.PI / 2.05; controls.minDistance = 2.5; controls.maxDistance = 30; controls.enableDamping = true;
+  controls.target.set(-0.2, 0.5, 0.2); controls.maxPolarAngle = Math.PI / 2.05; controls.minPolarAngle = 0.15; controls.minDistance = 2.5; controls.maxDistance = 30; controls.enableDamping = true;
+  // si può girare a destra e sinistra, ma non finire dietro la parete di fondo o quella di sinistra
+  controls.minAzimuthAngle = THREE.MathUtils.degToRad(-12); controls.maxAzimuthAngle = THREE.MathUtils.degToRad(102);
+  controls.enablePan = false;
+  const ASSE_Y = new THREE.Vector3(0, 1, 0);
+  function ruota(rad) { const off = camera.position.clone().sub(controls.target); off.applyAxisAngle(ASSE_Y, rad); camera.position.copy(controls.target).add(off); controls.update(); }
+  let giro = 0;
+  addEventListener('keydown', e => { if (e.key === 'ArrowLeft') giro = 1; if (e.key === 'ArrowRight') giro = -1; });
+  addEventListener('keyup', e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') giro = 0; });
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8c86, 1.15));
   const sole = new THREE.DirectionalLight(0xfff4e0, 2.2); sole.position.set(6, 10, 7); sole.castShadow = true;
   sole.shadow.mapSize.set(2048, 2048); Object.assign(sole.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 }); sole.shadow.bias = -0.0008;
@@ -176,7 +184,7 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
 
   const clock = new THREE.Clock();
   let visibile = true;
-  function frame() { requestAnimationFrame(frame); const dt = Math.min(0.05, clock.getDelta()); Object.values(mondo.omini).forEach(o => o.update(dt)); if (visibile) { controls.update(); renderer.render(scene, camera); } }
+  function frame() { requestAnimationFrame(frame); const dt = Math.min(0.05, clock.getDelta()); Object.values(mondo.omini).forEach(o => o.update(dt)); if (giro) ruota(giro * 1.1 * dt); if (visibile) { controls.update(); renderer.render(scene, camera); } }
   frame();
   new ResizeObserver(() => { const w = container.clientWidth, h = container.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }).observe(container);
 
@@ -223,5 +231,5 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
     }
     nota(ev);
   }
-  return { evento, vita, mondo, scene, camera, mostra(v) { visibile = v; } };
+  return { evento, vita, mondo, scene, camera, ruota, gira(dir) { giro = dir; }, mostra(v) { visibile = v; } };
 }

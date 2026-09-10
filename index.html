@@ -18,6 +18,9 @@
   #ticker div { background: rgba(28,33,40,.78); color: #c9cfda; font: 12px/1.4 ui-monospace, Menlo, monospace; font-style: italic; padding: 6px 10px; border-radius: 8px; animation: in .35s ease both; }
   #ticker div b { color: #8ab4ff; font-style: normal; }
   @keyframes in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+  .frecce { position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+  .frecce button { width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(28,33,40,.82); color: #fff; font-size: 20px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.18); touch-action: none; user-select: none; }
+  .frecce button:active { background: #3a4250; }
   #caricamento { position: fixed; inset: 0; display: grid; place-items: center; background: #cfd3da; }
   .aiuto { position: fixed; right: 16px; bottom: 16px; font-size: 12px; color: #5b6270; background: rgba(255,255,255,.72); padding: 6px 10px; border-radius: 8px; }
 </style>
@@ -26,6 +29,7 @@
 <div id="scena"></div>
 <div id="caricamento">Sto aprendo l'ufficio…</div>
 <div class="barra"><h1>Ufficio digitale <small>Luca Salvemini</small></h1><span class="chip">vetrina: gli omini vivono da soli</span></div>
+<div class="frecce"><button id="giraSx" title="Gira a sinistra (freccia ←)">◀</button><button id="giraDx" title="Gira a destra (freccia →)">▶</button></div>
 <div id="ticker"></div>
 <div class="aiuto">trascina per girare, rotella per avvicinare</div>
 <script>window.VITA_RAPIDA = true;</script>
@@ -33,9 +37,12 @@
 <script type="module">
 import { avvia } from './ufficio3d.js';
 const tick = document.getElementById('ticker');
+function tieni(id, dir) { const b = document.getElementById(id); const giu = e => { e.preventDefault(); window.ufficio3d && window.ufficio3d.gira(dir); }; const su = () => window.ufficio3d && window.ufficio3d.gira(0);
+  b.addEventListener('pointerdown', giu); b.addEventListener('pointerup', su); b.addEventListener('pointerleave', su); b.addEventListener('pointercancel', su); }
+tieni('giraSx', 1); tieni('giraDx', -1);
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 try {
-  const u = await avvia(document.getElementById('scena'));
+  const u = await avvia(document.getElementById('scena')); window.ufficio3d = u;
   document.getElementById('caricamento').remove();
   window.addEventListener('vita', e => {
     const ev = e.detail; u.vita(ev);
