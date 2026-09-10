@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L'ufficio digitale di Luca Salvemini</title>
+<script type="importmap">{"imports": {"three": "./lib/three.module.js", "three/addons/": "./lib/addons/"}}</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #cfd3da; font: 14px/1.5 -apple-system, "Helvetica Neue", sans-serif; color: #1c2128; }
+  #scena { position: fixed; inset: 0; }
+  #scena canvas { display: block; }
+  .barra { position: fixed; top: 14px; left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+  .barra > * { pointer-events: auto; }
+  .barra h1 { margin: 0; font-size: 16px; background: rgba(255,255,255,.72); padding: 8px 14px; border-radius: 10px; backdrop-filter: blur(6px); }
+  .barra h1 small { color: #5b6270; font-weight: 400; margin-left: 8px; }
+  .chip { font-size: 12px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.72); backdrop-filter: blur(6px); color: #5b6270; }
+  #ticker { position: fixed; left: 16px; bottom: 16px; max-width: 60vw; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  #ticker div { background: rgba(28,33,40,.78); color: #c9cfda; font: 12px/1.4 ui-monospace, Menlo, monospace; font-style: italic; padding: 6px 10px; border-radius: 8px; animation: in .35s ease both; }
+  #ticker div b { color: #8ab4ff; font-style: normal; }
+  @keyframes in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+  #caricamento { position: fixed; inset: 0; display: grid; place-items: center; background: #cfd3da; }
+  .aiuto { position: fixed; right: 16px; bottom: 16px; font-size: 12px; color: #5b6270; background: rgba(255,255,255,.72); padding: 6px 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="scena"></div>
+<div id="caricamento">Sto aprendo l'ufficio…</div>
+<div class="barra"><h1>Ufficio digitale <small>Luca Salvemini</small></h1><span class="chip">vetrina: gli omini vivono da soli</span></div>
+<div id="ticker"></div>
+<div class="aiuto">trascina per girare, rotella per avvicinare</div>
+<script>window.VITA_RAPIDA = true;</script>
+<script src="./vita.js"></script>
+<script type="module">
+import { avvia } from './ufficio3d.js';
+const tick = document.getElementById('ticker');
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+try {
+  const u = await avvia(document.getElementById('scena'));
+  document.getElementById('caricamento').remove();
+  window.addEventListener('vita', e => {
+    const ev = e.detail; u.vita(ev);
+    let t = window.vita.FRASI[ev.azione] || ev.azione; if (ev.soggetto) t += ' ' + ev.soggetto;
+    const d = document.createElement('div'); d.innerHTML = `<b>${esc(ev.agente)}</b> ${esc(t)}`; tick.appendChild(d);
+    while (tick.children.length > 5) tick.removeChild(tick.firstChild);
+    setTimeout(() => { if (d.parentNode) d.remove(); }, 14000);
+  });
+} catch (e) { document.getElementById('caricamento').textContent = 'Non riesco ad aprire l\'ufficio: ' + e.message; console.error(e); }
+</script>
+</body>
+</html>
