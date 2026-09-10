@@ -9,7 +9,8 @@
   const DURATE = { appisola: [8, 20], passeggia: [10, 20], caffe: [15, 30], telefono: [12, 25], va_da: [8, 8], sgrida: [6, 6],
     sbadiglia: [3, 4], pensa: [4, 6], gira_sedia: [3, 3], guarda_orologio: [3, 3], balla: [8, 15], applaude: [3, 4], chiacchiera: [15, 30],
     sgranchisce: [14, 20], mangia: [30, 50] };
-  const PESI = { appisola: 0.18, passeggia: 0.14, caffe: 0.10, telefono: 0.14, sbadiglia: 0.07, pensa: 0.07, gira_sedia: 0.04, guarda_orologio: 0.04, balla: 0.04, sgranchisce: 0.10, mangia: 0.08 };
+  const PESI = { appisola: 0.04, passeggia: 0.16, caffe: 0.12, telefono: 0.12, sbadiglia: 0.06, pensa: 0.08, gira_sedia: 0.05, guarda_orologio: 0.05, balla: 0.04, sgranchisce: 0.14, mangia: 0.10 };
+  const PAUSA_PISOLINO = 10 * 60 * 1000;   // al massimo un pisolino ogni dieci minuti per omino
   const stato = {};
   const rand = (a, b) => a + Math.random() * (b - a);
   const ms = ([a, b]) => rand(a, b) * 1000;
@@ -24,6 +25,7 @@
   function inizia(agente, fase, soggetto) {
     const s = stato[agente];
     s.fase = fase; s.fino = Date.now() + ms(DURATE[fase]); s.sgridata = 0;
+    if (fase === 'appisola') s.ultimoPisolino = Date.now();
     emetti(agente, fase, soggetto);
     if (fase === 'telefono' && Math.random() < 0.6) s.sgridata = Date.now() + rand(5, 10) * 1000;
     if (fase === 'caffe' && Math.random() < 0.45) {
@@ -43,6 +45,7 @@
     const pesi = Object.assign({}, PESI);
     if (agente === CAPO) delete pesi.telefono;
     if (!CON_CUFFIE.includes(agente)) delete pesi.balla;
+    if (Date.now() - (stato[agente].ultimoPisolino || 0) < PAUSA_PISOLINO) delete pesi.appisola;
     let r = Math.random() * Object.values(pesi).reduce((x, y) => x + y, 0);
     for (const [k, p] of Object.entries(pesi)) { r -= p; if (r <= 0) return k; }
     return 'appisola';
