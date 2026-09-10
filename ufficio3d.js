@@ -55,7 +55,7 @@ class Omino {
     this.seduto = false; this.sgabello = null; this.cibo = null; this.occupato = false;
     this.mano = null; this.root.traverse(o => { if (o.isBone && /hand[._]?R/i.test(o.name)) this.mano = o; });
     this.seat = mondo.punti['seat_' + nome] || new THREE.Vector3();
-    this.etichetta(); this.creaFumetto();
+    this.etichetta(); this.creaFumetto(); this.preparaOcchi();
     this.root.position.copy(this.seat); this.root.rotation.y = 0;
     this.siediSubito('digita');
   }
@@ -66,6 +66,30 @@ class Omino {
     g.fillStyle = '#fff'; g.fillText(this.nome[0].toUpperCase() + this.nome.slice(1), 128, 42);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
     sp.scale.set(0.9, 0.22, 1); sp.position.set(0, 2.05, 0); this.root.add(sp);
+  }
+  preparaOcchi() {
+    // battito di ciglia: gli occhi prendono per un attimo il colore della pelle
+    this.occhi = []; let pelle = null;
+    this.root.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m, i) => {
+        if (/_(eye|eye_hl|eye_brown)$/.test(m.name)) { const c = m.clone(); if (Array.isArray(o.material)) o.material[i] = c; else o.material = c; this.occhi.push({ m: c, colore: c.color.clone() }); }
+        if (/_skin(_tan)?$/.test(m.name) && !pelle) pelle = m.color.clone();
+      });
+    });
+    this.pelle = pelle || new THREE.Color(0.96, 0.72, 0.52);
+    this.prossimoBlink = performance.now() + rand(1500, 5000); this.fineBlink = 0; this.doppio = false;
+  }
+  aggiornaOcchi() {
+    const t = performance.now();
+    if (this.fineBlink && t > this.fineBlink) {
+      this.occhi.forEach(o => o.m.color.copy(o.colore)); this.fineBlink = 0;
+      if (this.doppio) { this.doppio = false; this.prossimoBlink = t + 220; } else this.prossimoBlink = t + rand(2500, 6500);
+    } else if (!this.fineBlink && t > this.prossimoBlink) {
+      this.occhi.forEach(o => o.m.color.copy(this.pelle)); this.fineBlink = t + rand(110, 150);
+      if (Math.random() < 0.2) this.doppio = true;
+    }
   }
   creaFumetto() {
     this.nuvola = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaFumetto('parla'), transparent: true, depthTest: false, opacity: 0 }));
@@ -145,7 +169,7 @@ class Omino {
   lasciaCibo() { if (this.cibo) { this.cibo.removeFromParent(); this.cibo = null; } }
   // ---- aggiornamento ----
   update(dt) {
-    this.mixer.update(dt);
+    this.mixer.update(dt); this.aggiornaOcchi();
     if (this.nuvola.visible && performance.now() > this.nuvolaFino) { this.nuvola.material.opacity -= dt * 3; if (this.nuvola.material.opacity <= 0) { this.nuvola.visible = false; this.nuvola.material.opacity = 0; } }
     if (!this.passo) { this.passo = this.coda.shift() || null; if (this.passo) this.inizioPasso(this.passo); if (!this.passo) return; }
     const p = this.passo;
