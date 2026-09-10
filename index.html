@@ -32,7 +32,6 @@
 <div class="frecce"><button id="giraSx" title="Gira a sinistra (freccia ←)">◀</button><button id="giraDx" title="Gira a destra (freccia →)">▶</button></div>
 <div id="ticker"></div>
 <div class="aiuto">trascina per girare, rotella per avvicinare</div>
-<script>window.VITA_RAPIDA = true;</script>
 <script src="./vita.js"></script>
 <script type="module">
 import { avvia } from './ufficio3d.js';
@@ -44,6 +43,7 @@ function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','
 try {
   const u = await avvia(document.getElementById('scena')); window.ufficio3d = u;
   document.getElementById('caricamento').remove();
+  await u.riprendiTutti(window.vita);
   window.addEventListener('vita', e => {
     const ev = e.detail; u.vita(ev);
     let t = window.vita.FRASI[ev.azione] || ev.azione; if (ev.soggetto) t += ' ' + ev.soggetto;

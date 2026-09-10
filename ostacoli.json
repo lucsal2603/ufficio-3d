@@ -1,0 +1,234 @@
+{
+ "stanza": {
+  "xmin": -7.0,
+  "xmax": 7.0,
+  "zmin": -5.0,
+  "zmax": 5.0
+ },
+ "ostacoli": [
+  {
+   "tipo": "rett",
+   "nome": "scrivania_scout",
+   "x": -4.6,
+   "z": 1.2,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_ispettore",
+   "x": -2.2,
+   "z": 1.2,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_social",
+   "x": 0.2,
+   "z": 1.2,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_collaudatore",
+   "x": 2.6,
+   "z": 1.2,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_copywriter",
+   "x": -4.6,
+   "z": -1.6,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_preventivista",
+   "x": -2.2,
+   "z": -1.6,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_segretaria",
+   "x": 0.2,
+   "z": -1.6,
+   "w": 1.4,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "scrivania_manager",
+   "x": 4.6,
+   "z": -2.4,
+   "w": 2.0,
+   "h": 1.0
+  },
+  {
+   "tipo": "rett",
+   "nome": "mobiletto_manager",
+   "x": 6.05,
+   "z": -2.4,
+   "w": 0.5,
+   "h": 1.0
+  },
+  {
+   "tipo": "rett",
+   "nome": "stampante",
+   "x": -6.4,
+   "z": -0.6,
+   "w": 0.6,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "scaffale_carta",
+   "x": -6.4,
+   "z": -1.8,
+   "w": 0.5,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "cestino",
+   "x": -6.3,
+   "z": 0.4,
+   "w": 0.4,
+   "h": 0.4
+  },
+  {
+   "tipo": "rett",
+   "nome": "cucina",
+   "x": 2.8,
+   "z": -4.7,
+   "w": 2.8,
+   "h": 0.6
+  },
+  {
+   "tipo": "rett",
+   "nome": "frigo",
+   "x": 5.4,
+   "z": -4.5,
+   "w": 0.7,
+   "h": 0.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "acqua",
+   "x": 0.4,
+   "z": -4.5,
+   "w": 0.3,
+   "h": 0.3
+  },
+  {
+   "tipo": "ell",
+   "nome": "tavolo_riunione",
+   "x": 4.4,
+   "z": 3.0,
+   "rx": 1.05,
+   "ry": 0.75
+  },
+  {
+   "tipo": "rett",
+   "nome": "divano",
+   "x": -5.4,
+   "z": -3.7,
+   "w": 1.4,
+   "h": 0.6
+  },
+  {
+   "tipo": "rett",
+   "nome": "poltrona",
+   "x": -3.4,
+   "z": -3.8,
+   "w": 0.6,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "tavolino",
+   "x": -4.8,
+   "z": -2.5,
+   "w": 0.8,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "lampada",
+   "x": -6.5,
+   "z": -3.2,
+   "w": 0.3,
+   "h": 0.3
+  },
+  {
+   "tipo": "rett",
+   "nome": "reception",
+   "x": -5.3,
+   "z": 3.9,
+   "w": 0.8,
+   "h": 1.7
+  },
+  {
+   "tipo": "rett",
+   "nome": "insegna",
+   "x": -4.7,
+   "z": 3.9,
+   "w": 0.3,
+   "h": 0.8
+  },
+  {
+   "tipo": "rett",
+   "nome": "cabina",
+   "x": 6.2,
+   "z": 0.4,
+   "w": 1.1,
+   "h": 1.1
+  },
+  {
+   "tipo": "rett",
+   "nome": "pianta_0",
+   "x": -6.4,
+   "z": 4.6,
+   "w": 0.5,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "pianta_1",
+   "x": 6.4,
+   "z": -4.4,
+   "w": 0.5,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "pianta_2",
+   "x": -1.6,
+   "z": -4.5,
+   "w": 0.5,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "pianta_3",
+   "x": 6.4,
+   "z": 4.6,
+   "w": 0.5,
+   "h": 0.5
+  },
+  {
+   "tipo": "rett",
+   "nome": "pianta_4",
+   "x": -2.6,
+   "z": 4.6,
+   "w": 0.5,
+   "h": 0.5
+  }
+ ]
+}
