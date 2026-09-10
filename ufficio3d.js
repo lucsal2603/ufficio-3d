@@ -13,6 +13,33 @@ const CIBI = ['cibo_panino', 'cibo_pizza', 'cibo_mela', 'cibo_brioche', 'cibo_ta
 const rand = (a, b) => a + Math.random() * (b - a);
 const scegli = arr => arr[Math.floor(Math.random() * arr.length)];
 
+// fumetti: icona e parola di quello che stanno facendo
+const ICONE = {
+  digita: ['⌨️', 'scrive'], scrive: ['⌨️', 'scrive'], legge: ['📄', 'legge'], cerca: ['🗺️', 'cerca'], appisola: ['💤', 'zzz'],
+  sveglia: ['❗', 'si sveglia'], telefono: ['📱', 'al telefono'], rimprovero: ['😳', 'scusa!'], sgrida: ['😠', 'sgrida'],
+  parla: ['💬', 'parla'], chiacchiera: ['💬', 'chiacchiera'], consegna: ['📨', 'consegna'], caffe: ['☕', 'caffè'],
+  mangia: ['🍽️', 'mangia'], cammina: ['🚶', 'in giro'], stiracchia_piedi: ['🙆', 'si stira'], balla: ['🎧', 'balla'],
+  applaude: ['👏', 'bravo!'], festeggia: ['🎉', 'evviva!'], errore: ['🤔', 'mmm...'], finito: ['✅', 'fatto'],
+  trovato: ['🔎', 'trovato!'], pensa: ['💡', 'idea!'], sbadiglia: ['🥱', 'sbadiglia'], gira_sedia: ['🌀', 'gira'],
+  guarda_orologio: ['⌚', "che ora è?"], saluta: ['👋', 'ciao!'], beve_acqua: ['💧', 'beve'],
+  cibo_panino: ['🥪', 'panino'], cibo_pizza: ['🍕', 'pizza'], cibo_mela: ['🍎', 'mela'], cibo_tazza: ['☕', 'tazza'], cibo_brioche: ['🥐', 'brioche'],
+};
+const _texture = {};
+function texturaFumetto(chiave) {
+  if (_texture[chiave]) return _texture[chiave];
+  const [icona, testo] = ICONE[chiave] || ['💬', chiave];
+  const c = document.createElement('canvas'); c.width = 256; c.height = 176; const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.strokeStyle = '#1c2128'; g.lineWidth = 6;
+  g.beginPath(); g.roundRect(14, 10, 228, 122, 26); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(56, 128); g.lineTo(34, 166); g.lineTo(96, 128); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(58, 130); g.lineTo(34, 166); g.lineTo(94, 130); g.stroke();
+  g.fillStyle = '#ffffff'; g.fillRect(60, 124, 34, 10);
+  g.textAlign = 'center'; g.font = '66px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; g.fillStyle = '#1c2128';
+  g.fillText(icona, 128, 82);
+  g.font = '600 24px -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif'; g.fillText(testo, 128, 118);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; _texture[chiave] = t; return t;
+}
+
 function yawVerso(da, a) { return Math.atan2(a.x - da.x, a.z - da.z); }
 function lerpAngolo(a, b, t) { let d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * t; }
 
@@ -28,7 +55,7 @@ class Omino {
     this.seduto = false; this.sgabello = null; this.cibo = null; this.occupato = false;
     this.mano = null; this.root.traverse(o => { if (o.isBone && /hand[._]?R/i.test(o.name)) this.mano = o; });
     this.seat = mondo.punti['seat_' + nome] || new THREE.Vector3();
-    this.etichetta(); 
+    this.etichetta(); this.creaFumetto();
     this.root.position.copy(this.seat); this.root.rotation.y = 0;
     this.siediSubito('digita');
   }
@@ -39,6 +66,15 @@ class Omino {
     g.fillStyle = '#fff'; g.fillText(this.nome[0].toUpperCase() + this.nome.slice(1), 128, 42);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
     sp.scale.set(0.9, 0.22, 1); sp.position.set(0, 2.05, 0); this.root.add(sp);
+  }
+  creaFumetto() {
+    this.nuvola = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaFumetto('parla'), transparent: true, depthTest: false, opacity: 0 }));
+    this.nuvola.scale.set(0.82, 0.56, 1); this.nuvola.position.set(0.5, 2.6, 0); this.nuvola.visible = false; this.nuvolaFino = 0; this.root.add(this.nuvola);
+  }
+  fumetto(chiave, secondi = 4) {
+    if (!ICONE[chiave]) return;
+    this.nuvola.material.map = texturaFumetto(chiave); this.nuvola.material.needsUpdate = true;
+    this.nuvola.visible = true; this.nuvola.material.opacity = 1; this.nuvolaFino = performance.now() + secondi * 1000;
   }
   play(nome, { loop = true, fade = 0.25, tieni = false } = {}) {
     const clip = this.clips[nome]; if (!clip) return 0;
@@ -104,12 +140,13 @@ class Omino {
     if (!this.mano || !this.mondo.cibo) return;
     const src = this.mondo.cibo[scegli(CIBI)]; if (!src) return;
     this.cibo = src.clone(true); this.cibo.position.set(-0.05, 0.06, 0.02); this.cibo.rotation.set(0, 0, 0); this.cibo.scale.set(1, 1, 1);
-    this.mano.add(this.cibo);
+    this.mano.add(this.cibo); this.fumetto(src.name, 30);
   }
   lasciaCibo() { if (this.cibo) { this.cibo.removeFromParent(); this.cibo = null; } }
   // ---- aggiornamento ----
   update(dt) {
     this.mixer.update(dt);
+    if (this.nuvola.visible && performance.now() > this.nuvolaFino) { this.nuvola.material.opacity -= dt * 3; if (this.nuvola.material.opacity <= 0) { this.nuvola.visible = false; this.nuvola.material.opacity = 0; } }
     if (!this.passo) { this.passo = this.coda.shift() || null; if (this.passo) this.inizioPasso(this.passo); if (!this.passo) return; }
     const p = this.passo;
     if (p.tipo === 'vai') {
@@ -122,8 +159,8 @@ class Omino {
     }
   }
   inizioPasso(p) {
-    if (p.tipo === 'vai') { if (this.seduto) { this.seduto = false; } this.play('cammina', { loop: true }); }
-    else if (p.tipo === 'clip') { const d = this.play(p.nome, { loop: !!p.loop }); p.resto = (p.secondi != null ? p.secondi : d) * 1000; if (!p.loop && p.secondi == null) p.resto = d * 1000; }
+    if (p.tipo === 'vai') { if (this.seduto) { this.seduto = false; } this.play('cammina', { loop: true }); if (this.root.position.distanceTo(p.a) > 1.2) this.fumetto('cammina', 3); }
+    else if (p.tipo === 'clip') { const d = this.play(p.nome, { loop: !!p.loop }); p.resto = (p.secondi != null ? p.secondi : d) * 1000; if (!p.loop && p.secondi == null) p.resto = d * 1000; if (!['digita', 'seduto', 'idle_piedi', 'siediti', 'alzati'].includes(p.nome)) this.fumetto(p.nome, Math.min(60, Math.max(3, p.resto / 1000))); }
     else if (p.tipo === 'attesa') { p.resto = p.ms; }
     else if (p.tipo === 'alzati') { if (this.seduto) { const d = this.play('alzati', { loop: false }); p.resto = d * 1000; this.seduto = false; } else p.resto = 0; }
     else if (p.tipo === 'siediti') {
@@ -194,7 +231,7 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
   function evento(ev) {           // eventi veri dell'ufficio
     const o = mondo.omini[ev.agente]; if (!o) return; const b = bersaglioDi(ev);
     switch (ev.azione) {
-      case 'inizia': case 'scrive': o.sedutoCon('digita', 0.01); break;
+      case 'inizia': case 'scrive': o.sedutoCon('digita', 0.01); o.fumetto('scrive', 5); break;
       case 'legge': o.sedutoCon('legge', 8); break;
       case 'cerca': o.sedutoCon('cerca', 10); break;
       case 'trovato': o.inPiediAllaScrivania('trovato', 2.5); break;
