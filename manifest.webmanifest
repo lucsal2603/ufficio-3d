@@ -1,0 +1,13 @@
+{
+  "name": "Ufficio digitale di Luca",
+  "short_name": "Ufficio",
+  "start_url": "./?chat",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#cfd3da",
+  "theme_color": "#1c2128",
+  "icons": [
+    { "src": "./icone-app/icona-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icone-app/icona-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

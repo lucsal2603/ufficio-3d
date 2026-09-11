@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1c2128">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ufficio">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icone-app/icona-192.png">
+<link rel="icon" href="./icone-app/icona-192.png">
 <title>L'ufficio digitale di Luca Salvemini</title>
 <script type="importmap">{"imports": {"three": "./lib/three.module.js", "three/addons/": "./lib/addons/"}}</script>
 <style>
@@ -45,6 +52,8 @@
   #chiaveForm input { border: 1px solid #d5d9e0; border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 16px; }
   #chiaveForm p { margin: 0; color: #5b6270; font-size: 13px; }
   #chiaveForm button { height: 42px; }
+  #notifBarra { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #eef0f4; border-bottom: 1px solid #e1e4ea; font-size: 12px; color: #5b6270; }
+  #notifBarra button { border: 0; background: #fff; border: 1px solid #d5d9e0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
   @media (max-width: 640px) { .aiuto, .chip, .barra h1 small { display: none; } #chat { width: 100vw; } }
 </style>
 </head>
@@ -58,6 +67,7 @@
 <aside id="chat" aria-hidden="true">
   <header><b>Manager <small>risponde dal server dell'ufficio, con calma</small></b><button id="chiudiChat" title="Chiudi" type="button">✕</button></header>
   <form id="chiaveForm" hidden><p>Questa chat è riservata a Luca: serve la chiave dell'ufficio. La ricordo su questo dispositivo.</p><input id="chiave" placeholder="chiave" autocomplete="off" autocapitalize="none" spellcheck="false"><button>Entra</button></form>
+  <div id="notifBarra" hidden><button id="attivaNotif" type="button">Attiva notifiche</button><span id="notifStato"></span></div>
   <div id="chatLista"></div>
   <div id="chatStato"></div>
   <form id="chatForm"><textarea id="chatTesto" placeholder="Scrivi al Manager…" rows="1"></textarea><button id="chatInvia">Invia</button></form>
@@ -116,7 +126,35 @@ try {
     return r.json();
   }
   function mostraChiave(msg) { formChiave.hidden = false; lista.hidden = true; form.hidden = true; stato.textContent = msg || ''; setTimeout(() => $('chiave').focus(), 350); }
-  function mostraChat() { formChiave.hidden = true; lista.hidden = false; form.hidden = false; }
+  function mostraChat() { formChiave.hidden = true; lista.hidden = false; form.hidden = false; notif.hidden = false; statoNotifiche().catch(() => {}); }
+  /* Notifiche push: il telefono si iscrive col servizio del browser e il server dell'ufficio lo avvisa
+     quando il Manager risponde, quando un dipendente si blocca e a fine giro. Su iPhone funziona solo
+     dal sito aggiunto alla schermata Home. */
+  const notif = $('notifBarra'), btnNotif = $('attivaNotif'), notifStato = $('notifStato');
+  const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent), standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const b64aBytes = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  async function statoNotifiche() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      btnNotif.hidden = true; notifStato.textContent = iOS && !standalone ? 'Per le notifiche su iPhone: Condividi → Aggiungi alla schermata Home, poi apri l\'ufficio da lì.' : 'Notifiche non disponibili su questo browser.'; return;
+    }
+    btnNotif.hidden = false;
+    const reg = await navigator.serviceWorker.register('./sw.js'); const sub = await reg.pushManager.getSubscription();
+    if (sub && Notification.permission === 'granted') { btnNotif.textContent = 'Notifica di prova'; btnNotif.dataset.attive = '1'; notifStato.textContent = 'Notifiche attive su questo dispositivo.'; }
+    else { btnNotif.textContent = 'Attiva notifiche'; btnNotif.dataset.attive = ''; notifStato.textContent = 'Ti avviso quando il Manager risponde o un dipendente si blocca.'; }
+  }
+  btnNotif.onclick = async () => {
+    try {
+      if (btnNotif.dataset.attive) { const r = await api('/api/push/prova', {}); notifStato.textContent = r.inviate ? 'Notifica di prova inviata.' : 'Il server non ha inviato nulla: controlla che le notifiche siano attive.'; return; }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { notifStato.textContent = 'Permesso negato: abilitalo nelle impostazioni del browser.'; return; }
+      const reg = await navigator.serviceWorker.register('./sw.js'); await navigator.serviceWorker.ready;
+      const k = await api('/api/push/chiave');
+      if (!k.chiave) { notifStato.textContent = 'Il server non ha ancora le chiavi per le notifiche.'; return; }
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aBytes(k.chiave) });
+      await api('/api/push/iscrivi', { iscrizione: sub.toJSON() });
+      await statoNotifiche();
+    } catch (e) { notifStato.textContent = 'Non riesco ad attivare le notifiche: ' + e.message; }
+  };
   function fine() { clearInterval(attesa); attesa = null; invia.disabled = false; }
   function aspetta() {
     if (attesa) return;
