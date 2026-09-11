@@ -42,13 +42,20 @@ function tieni(id, dir) { const b = document.getElementById(id); const giu = e =
 tieni('giraSx', 1); tieni('giraDx', -1);
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 try {
-  const u = await avvia(document.getElementById('scena')); window.ufficio3d = u;
+  const u = await avvia(document.getElementById('scena'), { ticker: ev => { if (ev.azione === 'avviso') window.dispatchEvent(new CustomEvent('vita', { detail: ev })); } }); window.ufficio3d = u;
   document.getElementById('caricamento').remove();
   await u.riprendiTutti(window.vita);
+  try {   // notizie vere dell'ufficio pubblicate col sito: gli omini vengono a raccontarle
+    const r = await fetch('./notizie.json', { cache: 'no-store' }); const n = r.ok ? await r.json() : [];
+    let viste = {}; try { viste = JSON.parse(localStorage.getItem('notizie_viste') || '{}'); } catch (e) {}
+    const oggi = new Date().toISOString().slice(0, 10);
+    const nuove = n.filter(x => x.testo && viste[x.testo] !== oggi);
+    nuove.forEach((x, i) => setTimeout(() => { u.annuncia(x.agente, x.testo); viste[x.testo] = oggi; try { localStorage.setItem('notizie_viste', JSON.stringify(viste)); } catch (e) {} }, 25000 + i * 240000));
+  } catch (e) { console.warn('notizie', e); }
   window.addEventListener('vita', e => {
     const ev = e.detail; u.vita(ev);
     if (ev.silenzioso) return;
-    let t = ev.azione === 'dice' ? `a ${ev.a === 'luca' ? 'Luca' : ev.a}: «${ev.testo}»` : (window.vita.FRASI[ev.azione] || ev.azione); if (ev.soggetto && ev.azione !== 'dice') t += ' ' + ev.soggetto;
+    let t = ev.azione === 'dice' ? `a ${ev.a === 'luca' ? 'Luca' : ev.a}: «${ev.testo}»` : ev.azione === 'avviso' ? `a Luca: «${ev.testo}»` : (window.vita.FRASI[ev.azione] || ev.azione); if (ev.soggetto && ev.azione !== 'dice') t += ' ' + ev.soggetto;
     const d = document.createElement('div'); d.innerHTML = `<b>${esc(ev.agente)}</b> ${esc(t)}`; tick.appendChild(d);
     while (tick.children.length > 5) tick.removeChild(tick.firstChild);
     setTimeout(() => { if (d.parentNode) d.remove(); }, 14000);

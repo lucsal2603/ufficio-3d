@@ -126,7 +126,7 @@ class Omino {
     this.seduto = false; this.sgabello = null; this.cibo = null; this.occupato = false;
     this.mano = null; this.root.traverse(o => { if (o.isBone && /hand[._]?R/i.test(o.name)) this.mano = o; });
     this.seat = mondo.punti['seat_' + nome] || new THREE.Vector3();
-    this.etichetta(); this.creaFumetto(); this.preparaOcchi();
+    this.etichetta(); this.creaFumetto(); this.creaEsclamativo(); this.preparaOcchi(); this.annunciando = false;
     this.root.position.copy(this.seat); this.root.rotation.y = 0;
     this.siediSubito('digita');
   }
@@ -162,6 +162,17 @@ class Omino {
       if (Math.random() < 0.2) this.doppio = true;
     }
   }
+  creaEsclamativo() {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 160; const g = c.getContext('2d');
+    g.fillStyle = '#e63946'; g.strokeStyle = '#1c2128'; g.lineWidth = 8;
+    g.beginPath(); g.roundRect(44, 8, 40, 96, 16); g.fill(); g.stroke();
+    g.beginPath(); g.arc(64, 132, 20, 0, Math.PI * 2); g.fill(); g.stroke();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    this.escl = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }));
+    this.escl.scale.set(0.34, 0.42, 1); this.escl.position.set(0, 2.45, 0); this.escl.visible = false; this.root.add(this.escl);
+    this.esclFino = 0;
+  }
+  esclamativo(secondi) { this.escl.visible = true; this.esclFino = performance.now() + secondi * 1000; }
   creaFumetto() {
     this.nuvola = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaFumetto('parla'), transparent: true, depthTest: false, opacity: 0 }));
     this.nuvola.scale.set(0.82, 0.56, 1); this.nuvola.position.set(0.5, 2.6, 0); this.nuvola.visible = false; this.nuvolaFino = 0; this.root.add(this.nuvola);
@@ -298,6 +309,7 @@ class Omino {
   // ---- aggiornamento ----
   update(dt) {
     this.mixer.update(dt); this.aggiornaOcchi();
+    if (this.escl.visible) { const t = performance.now(); if (t > this.esclFino) this.escl.visible = false; else { const f = (t % 600) / 600; this.escl.position.y = 2.45 + Math.abs(Math.sin(f * Math.PI)) * 0.18; this.escl.scale.set(0.34 + 0.04 * Math.sin(f * Math.PI * 2), 0.42, 1); } }
     if (this.nuvola.visible && performance.now() > this.nuvolaFino) { this.nuvola.material.opacity -= dt * 3; if (this.nuvola.material.opacity <= 0) { this.nuvola.visible = false; this.nuvola.material.opacity = 0; } }
     if (!this.passo) { this.passo = this.coda.shift() || null; if (this.passo) this.inizioPasso(this.passo); if (!this.passo) return; }
     const p = this.passo;
@@ -397,17 +409,55 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
 
   const clock = new THREE.Clock();
   let visibile = true;
+  // ---- annunci importanti: punto esclamativo, camera che va dall'omino, lui che si gira e parla a Luca ----
+  let tweenCam = null; let vistaSalvata = null; const annunci = []; let annuncioAttivo = null;
+  function vaiCamera(pos, target, durata) { tweenCam = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(), t: 0, durata }; }
+  function aggiornaCamera(dt) {
+    if (!tweenCam) return; tweenCam.t = Math.min(1, tweenCam.t + dt / tweenCam.durata); const k = tweenCam.t * tweenCam.t * (3 - 2 * tweenCam.t);
+    camera.position.lerpVectors(tweenCam.p0, tweenCam.p1, k); controls.target.lerpVectors(tweenCam.t0, tweenCam.t1, k);
+    if (tweenCam.t >= 1) tweenCam = null;
+  }
+  function annuncia(agente, testo) { if (!mondo.omini[agente] || !testo) return; annunci.push({ agente, testo }); prossimoAnnuncio(); }
+  function prossimoAnnuncio() {
+    if (annuncioAttivo || !annunci.length) return;
+    const { agente, testo } = annunci.shift(); const o = mondo.omini[agente]; annuncioAttivo = agente; o.annunciando = true;
+    const durata = Math.min(13, Math.max(6, 3 + String(testo).split(' ').length * 0.42));
+    o.esclamativo(2.2); nota({ agente, azione: 'avviso', soggetto: 'luca', testo });
+    setTimeout(() => {
+      if (!o.annunciando) return;
+      o.svuota(); o.annunciando = true; o.alzati();
+      const p = mondo.punti['wp_' + agente]; if (p) o.vai(p);
+      o.fai(() => {
+        vistaSalvata = { p: camera.position.clone(), t: controls.target.clone() }; controls.enabled = false;
+        const dir = camera.position.clone().sub(o.root.position).setY(0).normalize();
+        o.root.rotation.y = Math.atan2(dir.x, dir.z);
+        vaiCamera(o.root.position.clone().addScaledVector(dir, 3.6).add(new THREE.Vector3(0, 1.85, 0)), o.root.position.clone().add(new THREE.Vector3(0, 1.35, 0)), 1.3);
+        o.esclamativo(1.2); setTimeout(() => o.fumettoTesto(testo, durata), 900);
+      });
+      o.clip('parla', { loop: true, secondi: durata + 1 });
+      o.fai(() => { if (vistaSalvata) vaiCamera(vistaSalvata.p, vistaSalvata.t, 1.4); controls.enabled = true; o.annunciando = false; annuncioAttivo = null; setTimeout(prossimoAnnuncio, 1500); });
+      o.torna();
+    }, 2200);
+  }
   const _v = new THREE.Vector3();
   function aggiornaPareti() { for (const p of pareti) { _v.subVectors(camera.position, p.centro); p.nodo.visible = _v.dot(p.normale) < 0.4; } }
-  function frame() { requestAnimationFrame(frame); const dt = Math.min(0.05, clock.getDelta()); Object.values(mondo.omini).forEach(o => o.update(dt)); if (giro) ruota(giro * 1.1 * dt); if (visibile) { controls.update(); aggiornaPareti(); renderer.render(scene, camera); } }
+  let ultimoFrame = performance.now();
+  function passo(dt, disegna) {
+    Object.values(mondo.omini).forEach(o => { try { o.update(dt); } catch (e) { console.warn(o.nome, e); } });
+    if (giro && controls.enabled) ruota(giro * 1.1 * dt); aggiornaCamera(dt);
+    if (disegna && visibile) { if (controls.enabled) controls.update(); aggiornaPareti(); renderer.render(scene, camera); }
+  }
+  function frame() { requestAnimationFrame(frame); ultimoFrame = performance.now(); passo(Math.min(0.05, clock.getDelta()), true); }
   frame();
+  // se la pagina è in secondo piano i frame si fermano: la simulazione continua lo stesso, senza disegnare
+  setInterval(() => { if (performance.now() - ultimoFrame > 400) { clock.getDelta(); passo(1 / 30, false); } }, 33);
   new ResizeObserver(() => { const w = container.clientWidth, h = container.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }).observe(container);
 
   const nota = t => { if (ticker) ticker(t); };
   function bersaglioDi(ev) { if (AGENTI.includes(ev.soggetto)) return ev.soggetto; const m = /a (\w+):/.exec(ev.dettaglio || ''); return m && AGENTI.includes(m[1]) ? m[1] : null; }
 
   function evento(ev) {           // eventi veri dell'ufficio
-    const o = mondo.omini[ev.agente]; if (!o) return; const b = bersaglioDi(ev);
+    const o = mondo.omini[ev.agente]; if (!o || o.annunciando) return; const b = bersaglioDi(ev);
     switch (ev.azione) {
       case 'inizia': case 'scrive': o.sedutoCon('digita', 0.01); o.fumetto('scrive', 5); break;
       case 'legge': o.sedutoCon('legge', 8); break;
@@ -423,6 +473,7 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
   }
   function vita(ev) {             // vita d'ufficio (agenda deterministica), solo estetica
     const o = mondo.omini[ev.agente]; if (!o) return;
+    if (o.annunciando && !ev.ripresa) return;
     if (ev.ripresa) { o.riprendi(ev); return; }
     const d = ev.dati || {}; const rim = ev.rimasto != null ? ev.rimasto : null;
     switch (ev.azione) {
@@ -460,5 +511,5 @@ export async function avvia(container, { base = './', ticker = null } = {}) {
     try { await vitaApi.pronta; } catch (e) { /* senza agenda si parte seduti */ }
     for (const a of AGENTI) { const st = vitaApi.attuale ? vitaApi.attuale(a) : null; if (st) vita(Object.assign({ ripresa: true }, st)); }
   }
-  return { evento, vita, riprendiTutti, mondo, scene, camera, ruota, gira(dir) { giro = dir; }, mostra(v) { visibile = v; } };
+  return { evento, vita, riprendiTutti, annuncia, avanza: (dt, disegna) => passo(dt, disegna), mondo, scene, camera, ruota, gira(dir) { giro = dir; }, mostra(v) { visibile = v; } };
 }
